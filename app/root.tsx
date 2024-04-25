@@ -10,9 +10,11 @@ import {
   Scripts,
   ScrollRestoration,
   useLoaderData,
+  useNavigation,
 } from "@remix-run/react";
-import type { LinksFunction } from "@remix-run/node";
+import type { LinksFunction, LoaderFunctionArgs } from "@remix-run/node";
 import appStylesHref from "./app.css?url";
+import { useEffect, useState } from "react";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: appStylesHref },
@@ -23,13 +25,25 @@ export const action = async () => {
   return redirect(`/contacts/${contact.id}/edit`);
 };
 
-export const loader = async () => {
-  const contacts = await getContacts();
-  return json({ contacts });
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  const q = url.searchParams.get("q");
+  const contacts = await getContacts(q);
+  return json({ contacts, q });
 };
 
 export default function App() {
-  const { contacts } = useLoaderData<typeof loader>();
+  const navigation = useNavigation();
+  const { contacts, q } = useLoaderData<typeof loader>();
+  // the query now needs to be kept in state
+  const [query, setQuery] = useState(q || "");
+
+  // we still have a `useEffect` to synchronize the query
+  // to the component state on back/forward button clicks
+  useEffect(() => {
+    setQuery(q || "");
+  }, [q]);
+
   return (
     <html lang="en">
       <head>
@@ -49,6 +63,8 @@ export default function App() {
                 placeholder="Search"
                 type="search"
                 name="q"
+                onChange={(event) => setQuery(event.currentTarget.value)}
+                value={query}
               />
               <div id="search-spinner" aria-hidden hidden={true} />
             </Form>
@@ -90,7 +106,10 @@ export default function App() {
             )}
           </nav>
         </div>
-        <div id="detail">
+        <div
+          className={navigation.state === "loading" ? "loading" : ""}
+          id="detail"
+        >
           <Outlet />
         </div>
         <ScrollRestoration />
